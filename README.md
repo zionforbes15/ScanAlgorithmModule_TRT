@@ -10,6 +10,7 @@ runner (`pipeline_test`) for a 10X image pipeline:
 3) Regression scoring (length / dispersion / num)
 
 本项目生成动态库 `libAickTensorrt.so` 和测试程序 `pipeline_test`，用于 10X大图流水线：
+
 1）YOLO 检测（输入 1600x1600）  
 2）杂质二分类  
 3）回归打分（长度/分散度/数量）
@@ -174,6 +175,7 @@ been tested so far.
 - Ensure `./output/` exists and is writable when `isSaveImg=1`.
 - Run from project root so `10Xconfig.txt` and `Log/` resolve correctly.
 - Existing engines from TensorRT 8.x will NOT work. You must re-export or re-build `.engine` files using `trtexec` or the built-in initializer on the Orin Nano device.
+
 
 - 建议使用 JetPack 6.2.1 + TensorRT 10.3.0（已验证）。
 - Engine 最好在同型号设备上生成，避免 TRT 警告或性能异常。
