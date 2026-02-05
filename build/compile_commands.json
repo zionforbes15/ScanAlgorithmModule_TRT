@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/zion/scanalgorithmmodule/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DAickTensorrt_EXPORTS -I/home/zion/scanalgorithmmodule/include -I/usr/local/cuda-12.6/include -I/usr/local/cuda/include -isystem /usr/local/include/opencv4  -O3 -Wall -fPIC -O3 -march=armv8-a+crc+crypto -g -fPIC -std=gnu++17 -o CMakeFiles/AickTensorrt.dir/src/AickTensorrt.cpp.o -c /home/zion/scanalgorithmmodule/src/AickTensorrt.cpp",
+  "file": "/home/zion/scanalgorithmmodule/src/AickTensorrt.cpp"
+},
+{
+  "directory": "/home/zion/scanalgorithmmodule/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DAickTensorrt_EXPORTS -I/home/zion/scanalgorithmmodule/include -I/usr/local/cuda-12.6/include -I/usr/local/cuda/include -isystem /usr/local/include/opencv4  -O3 -Wall -fPIC -O3 -march=armv8-a+crc+crypto -g -fPIC -std=gnu++17 -o CMakeFiles/AickTensorrt.dir/src/DetModel.cpp.o -c /home/zion/scanalgorithmmodule/src/DetModel.cpp",
+  "file": "/home/zion/scanalgorithmmodule/src/DetModel.cpp"
+},
+{
+  "directory": "/home/zion/scanalgorithmmodule/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DAickTensorrt_EXPORTS -I/home/zion/scanalgorithmmodule/include -I/usr/local/cuda-12.6/include -I/usr/local/cuda/include -isystem /usr/local/include/opencv4  -O3 -Wall -fPIC -O3 -march=armv8-a+crc+crypto -g -fPIC -std=gnu++17 -o CMakeFiles/AickTensorrt.dir/src/dbscan.cpp.o -c /home/zion/scanalgorithmmodule/src/dbscan.cpp",
+  "file": "/home/zion/scanalgorithmmodule/src/dbscan.cpp"
+},
+{
+  "directory": "/home/zion/scanalgorithmmodule/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DAickTensorrt_EXPORTS -I/home/zion/scanalgorithmmodule/include -I/usr/local/cuda-12.6/include -I/usr/local/cuda/include -isystem /usr/local/include/opencv4  -O3 -Wall -fPIC -O3 -march=armv8-a+crc+crypto -g -fPIC -std=gnu++17 -o CMakeFiles/AickTensorrt.dir/src/MemoryState.cpp.o -c /home/zion/scanalgorithmmodule/src/MemoryState.cpp",
+  "file": "/home/zion/scanalgorithmmodule/src/MemoryState.cpp"
+}
+]

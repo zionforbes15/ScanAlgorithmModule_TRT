@@ -1,0 +1,49 @@
+10X_detection|/home/zion/scanalgorithmmodule/engine/2cls_fp16.engine
+Impurity_score|/home/zion/scanalgorithmmodule/engine/ch_impurities_v2_fp16.engine
+Chromosome_score|/home/zion/scanalgorithmmodule/engine/regression_fp16.engine
+# Foreground_seg is skipped when operationModel=1
+Foreground_seg|/home/zion/scanalgorithmmodule/engine/resnet34_960_960_mc_fp16.engine
+conf_thres|0.25
+iou_thres|0.45
+operationModel|1
+showInf|0
+
+# --- pipeline defaults (safe to run) ---
+reservedImpuritie|1
+Solution|default
+EquipmentManufacturer|sunny
+ModelOverload|False
+impurityThreshold|0.7
+lenBottom|0.05
+dispBottom|0.05
+numBottom|0.0
+scoreFilter|0.0
+
+# --- scoring / filtering ---
+lenTop|1.0
+dispTop|1.0
+numTop|1.0
+centralPoint|0.5
+centralDistance|0.5
+lenWeight|0.33
+dispWeight|0.33
+numWeight|0.34
+hw_disperse|0.5
+meanScore_th|0.0
+aspectBottom|0
+aspectTop|9999
+heightBottom|0
+heightTop|9999
+widthBottom|0
+widthTop|9999
+disperseBottom|0
+disperseTop|1
+ChromoaspectBottom|0
+ChromoaspectTop|1
+
+# --- misc ---
+repeatDistance|0
+polyploid_rate|0.5
+eps|0.76
+isSaveImg|1
+saveImgPath|./output/

@@ -1,0 +1,3 @@
+/home/zion/scanalgorithmmodule/build/CMakeFiles/AickTensorrt.dir
+/home/zion/scanalgorithmmodule/build/CMakeFiles/edit_cache.dir
+/home/zion/scanalgorithmmodule/build/CMakeFiles/rebuild_cache.dir
