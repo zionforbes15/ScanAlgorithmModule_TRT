@@ -1,0 +1,13 @@
+build/
+bin/
+pipeline_test
+
+engine/*.engine
+
+
+Log/
+output/*.png
+*.jpg
+*.png
+
+.vscode/
