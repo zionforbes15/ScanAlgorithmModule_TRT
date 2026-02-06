@@ -83,7 +83,7 @@ g++ main.cpp -o pipeline_test \
 
 # Configuration (10Xconfig.txt) / 配置说明
 ----------------------------------------
-Paths / 路径:
+* Paths / 路径:
 - `10X_detection`: YOLO engine (1600x1600, multi-output)  
   `10X_detection`：YOLO 引擎（1600x1600，多输出头）
 - `Impurity_score`: 2-class impurities engine  

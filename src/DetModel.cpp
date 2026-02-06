@@ -10,6 +10,7 @@
 #include <numeric>  
 #include <cstring>
 #include <cctype>
+#include <limits>
 #include <cuda_runtime_api.h>
 
 
@@ -1348,30 +1349,116 @@ std::vector<cv::Mat> CTestModel::batchInferBoxes(
     if (m_output_indices.empty()) return {};
     auto& out = m_bindings[m_output_indices[0]];
 
-    int obj_count = 8400; 
-    int dims = m_input_c; 
+    // 输出 shape 解析：兼容 [B,C,N] / [B,N,C] / [C,N] / [N,C]
+    const int nc = m_classNum;
+    const int cls_channels4 = 4 + nc;
+    const int cls_channels5 = 5 + nc; // 兼容带 objness 的情况（但保持 Windows 行为：不乘 objness）
+
+    int obj_count = 0;
+    int stride_channels = 0;   // 实际每个 obj 的通道数（C）
+    int score_offset = 4;      // class scores 起始下标（4 或 5）
+    bool layout_chw = true;    // true: C x N, false: N x C
+    bool has_batch = false;
+
+    const int nd = out.dims.nbDims;
+    const int d0 = (nd > 0) ? out.dims.d[0] : 0;
+    const int d1 = (nd > 1) ? out.dims.d[1] : 0;
+    const int d2 = (nd > 2) ? out.dims.d[2] : 0;
+
+    auto try_parse = [&](int expected_channels, int expected_score_offset) -> bool {
+        // 先处理带 batch 的 3D
+        if (nd == 3 && d0 == (int)B) {
+            has_batch = true;
+            // [B, C, N]
+            if (d1 == expected_channels) {
+                layout_chw = true;
+                stride_channels = d1;
+                obj_count = d2;
+                score_offset = expected_score_offset;
+                return true;
+            }
+            // [B, N, C]
+            if (d2 == expected_channels) {
+                layout_chw = false;
+                stride_channels = d2;
+                obj_count = d1;
+                score_offset = expected_score_offset;
+                return true;
+            }
+        }
+
+        // 2D：无 batch
+        if (nd == 2) {
+            has_batch = false;
+            // [C, N]
+            if (d0 == expected_channels) {
+                layout_chw = true;
+                stride_channels = d0;
+                obj_count = d1;
+                score_offset = expected_score_offset;
+                return true;
+            }
+            // [N, C]
+            if (d1 == expected_channels) {
+                layout_chw = false;
+                stride_channels = d1;
+                obj_count = d0;
+                score_offset = expected_score_offset;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    // 优先按 Windows 行为（4+nc）解析，失败再尝试（5+nc）
+    bool ok = try_parse(cls_channels4, 4);
+    if (!ok) ok = try_parse(cls_channels5, 5);
+
+    if (!ok || obj_count <= 0 || stride_channels <= 0) {
+        test_p("【错误】batchInferBoxes: 无法解析输出维度 (nd=" + std::to_string(nd) +
+               ", d0=" + std::to_string(d0) +
+               ", d1=" + std::to_string(d1) +
+               ", d2=" + std::to_string(d2) +
+               ", nc=" + std::to_string(nc) + ")");
+        return {};
+    }
+
+    // 无 batch 维但你给了多张图：交付级必须拦截，避免错读内存
+    if (!has_batch && B > 1) {
+        test_p("【错误】batchInferBoxes: 输出无batch维，但B=" + std::to_string(B) + ">1，engine可能不支持batch");
+        return {};
+    }
+
+    const size_t per_sample_elems = (size_t)stride_channels * (size_t)obj_count;
+
     for (size_t i = 0; i < B; ++i) {
-        // 指向第 i 个样本的起始地址
-        float* sample_ptr = out.host.data() + i * dims * obj_count;
+        float* base = out.host.data();
+        float* sample_ptr = base + (has_batch ? i * per_sample_elems : 0);
         
         std::vector<cv::Rect> boxes;
         std::vector<float> confidences;
+        boxes.reserve(obj_count / 4);
+        confidences.reserve(obj_count / 4);
 
         for (int j = 0; j < obj_count; ++j) {
             // 找到类别得分最高的项
-            float max_score = 0;
-            for (int c = 0; c < m_classNum; ++c) {
-                float score = sample_ptr[(4 + c) * obj_count + j];
+            float max_score = -std::numeric_limits<float>::infinity();
+            for (int c = 0; c < nc; ++c) {
+                const int ch = score_offset + c;
+                float score = layout_chw
+                                  ? sample_ptr[ch * obj_count + j]              // [C, N]
+                                  : sample_ptr[j * stride_channels + ch];       // [N, C]
                 if (score > max_score) {
                     max_score = score;
                 }
             }
 
             if (max_score > m_confThres) {
-                float cx = sample_ptr[0 * obj_count + j];
-                float cy = sample_ptr[1 * obj_count + j];
-                float ow = sample_ptr[2 * obj_count + j];
-                float oh = sample_ptr[3 * obj_count + j];
+                float cx = layout_chw ? sample_ptr[0 * obj_count + j] : sample_ptr[j * stride_channels + 0];
+                float cy = layout_chw ? sample_ptr[1 * obj_count + j] : sample_ptr[j * stride_channels + 1];
+                float ow = layout_chw ? sample_ptr[2 * obj_count + j] : sample_ptr[j * stride_channels + 2];
+                float oh = layout_chw ? sample_ptr[3 * obj_count + j] : sample_ptr[j * stride_channels + 3];
 
                 int x = static_cast<int>((cx - 0.5f * ow) * x_factors[i]);
                 int y = static_cast<int>((cy - 0.5f * oh) * y_factors[i]);
