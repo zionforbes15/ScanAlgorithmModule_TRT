@@ -1,6 +1,7 @@
 #include "AickTensorrt.h"
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include <chrono>
 
 using namespace DeepLearningFuncs;
 
@@ -51,7 +52,24 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    int ret = api->AickTensorrt(reinterpret_cast<char*>(resized.data), resized.cols, resized.rows, stageInfo);
+    // Warmup to stabilize TensorRT latency
+    const int warmup_iters = 3;
+    for (int i = 0; i < warmup_iters; ++i) {
+        (void)api->AickTensorrt(reinterpret_cast<char*>(resized.data), resized.cols, resized.rows, stageInfo);
+    }
+
+    // Timed average inference
+    const int measure_iters = 10;
+    double total_ms = 0.0;
+    int ret = 0;
+    for (int i = 0; i < measure_iters; ++i) {
+        auto t_start = std::chrono::steady_clock::now();
+        ret = api->AickTensorrt(reinterpret_cast<char*>(resized.data), resized.cols, resized.rows, stageInfo);
+        auto t_end = std::chrono::steady_clock::now();
+        total_ms += std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    }
+    double avg_ms = total_ms / measure_iters;
+    std::cout << "Average inference time (" << measure_iters << " runs): " << avg_ms << " ms" << std::endl;
     if (ret < 0) {
         std::cerr << "AickTensorrt pipeline failed, ret=" << ret << std::endl;
         return 1;

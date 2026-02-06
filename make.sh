@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+cd output
+rm -rf *
+cd ..
 cd build
 rm -rf *
 cmake ..

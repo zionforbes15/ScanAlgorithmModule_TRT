@@ -148,12 +148,12 @@ Only the 10X pipeline (YOLO → classification → regression scoring) has
 been tested so far.  
 目前仅验证 10X 流水线（YOLO → 分类 → 回归打分）。
 
-## Performance / 性能表现 (Estimated)
-| Stage | Input Size | Latency (FP16) |
-| :--- | :--- | :--- |
-| **YOLO Detection** | 1600 x 1600 | ~25ms - 35ms |
-| **ROI Batch Scoring** | 224 x 224 (x10) | ~15ms |
-| **Total Pipeline** | Full 10X Process | < 100ms |
+## Performance / 性能表现
+Measured average latency is ~**200 ms per image** on Jetson Orin Nano
+Super for the full 10X pipeline (YOLO + impurities + regression).
+
+在 Jetson Orin Nano Super 上实测 10X 全流程（YOLO + 杂质分类 + 回归打分）
+单张平均推理约 **200 ms**。
 
 # Troubleshooting / 常见问题
 --------------------------
