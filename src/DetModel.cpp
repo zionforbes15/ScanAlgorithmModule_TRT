@@ -27,7 +27,6 @@ CTestModel::CTestModel()
     std::map<std::string, std::string> config;
     ReadConfig_Det(config);
     
-    // 如果配置里有阈值，就在这里覆盖默认值
     if(config.count("conf_thres")) m_confThres = std::stof(config["conf_thres"]);
     if(config.count("iou_thres")) m_iouThres = std::stof(config["iou_thres"]);
 
@@ -87,26 +86,25 @@ bool CTestModel::copyOutputsToHost() {
     return true;
 }
 int CTestModel::initModel(std::string model_path, int class_num, float conf_thres, float iou_thres, std::tuple<int, int, int> input_size) {
-    // 1. 防御性检查：确保路径不为空
+    //防御性检查：确保路径不为空
     if (model_path.empty()) {
         std::cerr << "[TensorRT] ERROR: Model path is empty! Check your config file." << std::endl;
         return -1;
     }
 
-    // 2. 更新成员变量
     m_confThres = conf_thres;
     m_iouThres = iou_thres;
     m_classNum = class_num; 
     m_input_h = std::get<0>(input_size);
     m_input_w = std::get<1>(input_size);
     m_input_c = std::get<2>(input_size);
-    m_input_b = 1; // 默认 batch 为 1
+    m_input_b = 1; 
     m_input_w_h = std::make_tuple(m_input_w, m_input_h);
 
     std::cout << "[TensorRT] Initializing model: " << model_path << std::endl;
     std::cout << "[TensorRT] Configured Dims: " << m_input_w << "x" << m_input_h << "x" << m_input_c << std::endl;
 
-    // 3. 调用加载引擎（内部应包含 Runtime/Engine/Context 的创建）
+    // 调用加载引擎.engine
     if (!loadEngine(model_path)) {
         std::cerr << "[TensorRT] Model initialization FAILED at loadEngine!" << std::endl;
         m_isEngineLoaded = false;
@@ -219,14 +217,12 @@ bool CTestModel::loadEngine(const std::string& engine_path) {
     try {
         std::cout << "Loading engine file: " << engine_path << std::endl;
 
-        // 1. 检查文件
         std::ifstream file(engine_path, std::ios::binary);
         if (!file.good()) {
             std::cerr << "Engine file does not exist: " << engine_path << std::endl;
             return false;
         }
 
-        // 2. 读取数据 (包含解密逻辑)
         std::vector<uint8_t> engine_data;
         if (engine_path.find(".engine") != std::string::npos) {
             engine_data.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -241,13 +237,12 @@ bool CTestModel::loadEngine(const std::string& engine_path) {
         }
         file.close();
 
-        // 3. 清理旧资源
         clearResources();
         if (m_context) { delete m_context; m_context = nullptr; }
         if (m_engine) { delete m_engine; m_engine = nullptr; }
         if (m_runtime) { delete m_runtime; m_runtime = nullptr; }
 
-        // 4. 反序列化
+        // 反序列化
         m_runtime = nvinfer1::createInferRuntime(m_logger);
         m_engine = m_runtime->deserializeCudaEngine(engine_data.data(), engine_data.size());
         if (!m_engine) return false;
@@ -255,7 +250,7 @@ bool CTestModel::loadEngine(const std::string& engine_path) {
         m_context = m_engine->createExecutionContext();
         cudaStreamCreate(&m_stream);
 
-        // 5. --- 动态绑定所有输入输出 ---
+        // 动态绑定所有输入输出
         int num_tensors = m_engine->getNbIOTensors();
         m_bindings.resize(num_tensors);
         m_output_indices.clear();
@@ -268,7 +263,6 @@ bool CTestModel::loadEngine(const std::string& engine_path) {
             nvinfer1::TensorIOMode mode = m_engine->getTensorIOMode(name);
             nvinfer1::Dims dims = m_engine->getTensorShape(name);
             
-            // 计算需要的总元素量
             size_t count = 1;
             for (int j = 0; j < dims.nbDims; ++j) {
                 // 处理动态 batch 情况，如果 dim < 0 则设为 1
@@ -294,7 +288,7 @@ bool CTestModel::loadEngine(const std::string& engine_path) {
             }
         }
 
-        // 识别 mask 输出（若存在）
+        // 识别 mask 输出
         m_output_det_index = 0;
         m_output_mask_index = -1;
         auto to_lower = [](const std::string& s) {
@@ -415,15 +409,14 @@ std::vector<cv::Mat> CTestModel::clarity_getOutput(cv::Mat& inputImg) {
     float threshold = m_confThres;
     
     // 这里的维度从类的成员变量中直接获取，不再依赖 node_dims
-    int out_h = m_input_h; // 对应你代码中的 i
-    int out_w = m_input_w; // 对应你代码中的 j
-    int out_c = m_input_c; // 对应你代码中的 k (通道数)
+    int out_h = m_input_h; 
+    int out_w = m_input_w; 
+    int out_c = m_input_c; 
 
     for (int k = 0; k < out_c; k++) {
         cv::Mat mask = cv::Mat::zeros(out_h, out_w, CV_8UC1);
         for (int i = 0; i < out_h; i++) {
             for (int j = 0; j < out_w; j++) {
-                // 计算在展平数组中的索引
                 int index = i * out_w + j + k * out_h * out_w;
                 float temp_v = out_ptr[index];
                 
@@ -481,7 +474,6 @@ std::vector<std::vector<det_box>> CTestModel::getOutput(char* image, int w, int 
         copyOutputsToHost();
         test_p("============= TensorRT 推理已完成，结果已拷贝回 Host");
 
-        // 后处理：支持多输出（尽力合并）
         test_p("============= 开始非极大值抑制 NMS (TRT 版)");
         const int stride5 = 5 + m_classNum;
         const int stride4 = 4 + m_classNum;
@@ -583,24 +575,23 @@ std::vector<det_box> CTestModel::getMcnOutput(char* image, int w, int h) {
     std::vector<det_box> res_boxs;
 
     try {
-        // 1. 基础图像处理
         cv::Mat inputImg = cv::Mat(h, w, CV_8UC3, image);
         cv::Mat gray_img;
         cv::cvtColor(inputImg, gray_img, cv::COLOR_BGR2GRAY);
 
-        // 强行合并为3通道灰度图
+        // 合并为3通道灰度图
         cv::Mat gray3Ch;
         std::vector<cv::Mat> channels_img = {gray_img, gray_img, gray_img};
         cv::merge(channels_img, gray3Ch);
 
-        // 核心预处理：减去最小值
+        // 减去最小值
         double minVal;
         cv::minMaxLoc(gray3Ch, &minVal, NULL);
         gray3Ch = gray3Ch - minVal;
 
         test_p("getMcnOutput ================gray3Ch---------------rows: " + std::to_string(gray3Ch.rows));
 
-        // 2. 缩放与归一化
+        // 缩放与归一化
         cv::Mat resized = letterbox_image_v2(gray3Ch, m_input_w_h);
         cv::cvtColor(resized, resized, cv::COLOR_BGR2RGB);
         
@@ -610,7 +601,6 @@ std::vector<det_box> CTestModel::getMcnOutput(char* image, int w, int h) {
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(imgRGBFLoat, preprocessedImage); // HWC -> CHW
 
-        // 3. TensorRT 推理过程
         test_p("============= 开始显存拷贝与 TRT 推理");
         
         // 上传数据
@@ -623,21 +613,19 @@ std::vector<det_box> CTestModel::getMcnOutput(char* image, int w, int h) {
         m_context->enqueueV3(m_stream);
         copyOutputsToHost();
 
-        // 注意：在 TensorRT 导出时，output_dim 通常由 engine 结构决定
-        int output_dim = m_engine->getNbIOTensors() - 1; // 减去 1 个输入，剩余为输出数
+        int output_dim = m_engine->getNbIOTensors() - 1; 
 
         if (output_dim == 1 && !m_output_indices.empty()) {
             test_p("============= 开始 NMS (YOLOv8-TRT 模式)");
             // 使用之前定义的针对 TRT float* 的 NMS
-            int obj_count = 8400; // 建议根据 m_output_size 动态调整
+            int obj_count = 8400; // 根据 m_output_size 动态调整
             const auto& out = m_bindings[m_output_indices[0]];
             det_boxes_all = non_max_suppression_trt_yolov8(out.host.data(), obj_count, m_confThres, m_iouThres, m_classNum);
             
-            // 坐标还原到原图尺寸
+            // 坐标还原
             std::tuple<int, int> size_1024 = std::make_tuple(1024, 1024);
             scale_coords_v4(inputImg, size_1024, det_boxes_all);
         } else {
-            // 这里是原代码中的分割逻辑分支，TRT 下需要根据具体绑定的 output_tensors 地址来解析
             test_p("Warning: 多输出(分割)逻辑在板端需配合具体 Tensor 名称解析");
         }
 
@@ -661,7 +649,6 @@ std::vector<instance_seg> CTestModel::getCellFishOutput(char* image, int w, int 
     std::vector<instance_seg> res_boxs;
 
     try {
-        // 1. 完整预处理逻辑（与 Windows 端完全同步）
         cv::Mat inputImg = cv::Mat(h, w, CV_8UC3, image);
         cv::Mat gray_img;
         cv::cvtColor(inputImg, gray_img, cv::COLOR_BGR2GRAY);
@@ -689,7 +676,7 @@ std::vector<instance_seg> CTestModel::getCellFishOutput(char* image, int w, int 
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(imgRGBFLoat, preprocessedImage); // HWC -> CHW
 
-        // 2. TensorRT 推理执行
+        // TensorRT 推理执行
         test_p("============= 开始显存上载与双输出推理执行");
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return res_boxs;
         auto& in = m_bindings[m_input_index];
@@ -708,9 +695,8 @@ std::vector<instance_seg> CTestModel::getCellFishOutput(char* image, int w, int 
         const auto* mask_out = (mask_order >= 0) ? &m_bindings[m_output_indices[mask_order]] : nullptr;
         test_p("============= 推理完成，显存回传内存完毕");
 
-        // 3. 完整后处理逻辑
         int _segChannels = 32;
-        int obj_count = 8400; // 对应 640x640 输入
+        int obj_count = 8400; 
         int dims = m_classNum + 4 + _segChannels;
         int obj_counts = obj_count * dims;
 
@@ -723,7 +709,6 @@ std::vector<instance_seg> CTestModel::getCellFishOutput(char* image, int w, int 
             }
         }
 
-        // 准备后处理需要的 Shape 信息
         std::vector<int> outputTensorShape = {1, std::get<0>(m_input_w_h), obj_count};
         std::vector<int> outputMaskTensorShape = {1, 32, std::get<0>(m_input_w_h)/4, std::get<1>(m_input_w_h)/4};
 
@@ -734,7 +719,6 @@ std::vector<instance_seg> CTestModel::getCellFishOutput(char* image, int w, int 
         std::vector<cv::Mat> mks;
 
         test_p("============= 开始 NMS 与 Mask 生成逻辑");
-        // 调用 ImgHandle.hpp 中重构后的板端专用 NMS
         if (!mask_out) return res_boxs;
         non_max_suppression_trt_yolov8_seg(inputImg, transposed_prob0.data(), const_cast<float*>(mask_out->host.data()), 
                                            outputTensorShape, outputMaskTensorShape, 
@@ -801,8 +785,6 @@ std::vector<det_box> CTestModel::getCellOutput(char* image, int w, int h) {
 
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(imgRGBFLoat, preprocessedImage); // HWC -> CHW
-
-        // 2. TensorRT 显存操作与执行
         test_p("getCellOutput ================ 开始上载显存并推理");
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return res_boxs;
         auto& in = m_bindings[m_input_index];
@@ -815,10 +797,8 @@ std::vector<det_box> CTestModel::getCellOutput(char* image, int w, int h) {
 
 
         std::tuple<int, int> net_size = std::tuple<int, int>(1024, 1024);
-        int obj_count = 8400; // 需确认具体模型的输出数量
-        
-        // 调用之前适配的板端 NMS 函数
-        // 函数内部处理了 TensorRT 输出所需的转置逻辑
+        int obj_count = 8400; 
+    
         if (m_output_indices.empty()) return res_boxs;
         const auto& out = m_bindings[m_output_indices[0]];
         std::vector<std::vector<det_box>> det_boxes_all = non_max_suppression_trt_yolov8(
@@ -832,7 +812,6 @@ std::vector<det_box> CTestModel::getCellOutput(char* image, int w, int h) {
         test_p("============= 原位推理坐标还原");
         scale_coords_v4(inputImg, net_size, det_boxes_all);
 
-        // 展平结果集
         for (const auto& cls_vec : det_boxes_all) {
             for (const auto& box : cls_vec) {
                 res_boxs.push_back(box);
@@ -850,7 +829,6 @@ std::vector<det_box> CTestModel::getCellOutput(char* image, int w, int h) {
 
 inline cv::Mat letterbox_image_ambitus(cv::Mat image_src, std::tuple<int, int>& size) {
     cv::Mat grayImg;
-    // 板端建议使用标准的 cv::COLOR_RGB2GRAY
     cv::cvtColor(image_src, grayImg, cv::COLOR_RGB2GRAY);
     
     int h = grayImg.rows;
@@ -865,7 +843,7 @@ inline cv::Mat letterbox_image_ambitus(cv::Mat image_src, std::tuple<int, int>& 
     // 计算平均填充背景值
     float padding_number = (a1 + a2 + a3 + a4) / 4.0f;
 
-    // 特殊逻辑：如果是 224 输入的模型（通常是分类模型），强制填充白色
+    // 如果是 224 输入的模型，强制填充白色
     if (std::get<0>(size) == 224)
         padding_number = 255;
 
@@ -886,7 +864,6 @@ inline cv::Mat letterbox_image_ambitus(cv::Mat image_src, std::tuple<int, int>& 
     int left = pad_w / 2;
     int right = pad_w - left;
 
-    // 板端 OpenCV 使用 cv::BORDER_CONSTANT
     cv::copyMakeBorder(image, image, top, bottom, left, right, cv::BORDER_CONSTANT, 
                       cv::Scalar(padding_number, padding_number, padding_number));
     return image;
@@ -897,8 +874,6 @@ std::vector<float> CTestModel::getOutput(cv::Mat &inputImg) {
     std::vector<float> output_x;
 
     try {
-        // 1. 预处理逻辑 (与原代码数学逻辑严格一致)
-        // 使用动态背景填充缩放
         cv::Mat resized = letterbox_image_ambitus(inputImg, m_input_w_h);
         
         float rgb_means = 0.7696278f * 255.0f;
@@ -910,21 +885,18 @@ std::vector<float> CTestModel::getOutput(cv::Mat &inputImg) {
         // 构造均值减法矩阵
         cv::Mat one_sub = cv::Mat::ones(resized.rows, resized.cols, CV_32FC1) * rgb_means;
         
-        // 转换为灰度（单通道）
+        // 转换为灰度图
         cv::cvtColor(resized, resized, cv::COLOR_BGR2GRAY); 
         
         // 减去均值并乘以标准差
         resized = resized - one_sub;
         resized = resized * rgb_std;
         
-        // 转回三通道 RGB (模型输入通常固定为3通道)
         cv::cvtColor(resized, resized, cv::COLOR_GRAY2RGB);
 
-        // HWC -> CHW 转换
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(resized, preprocessedImage);
 
-        // 2. TensorRT 推理执行
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return {};
         auto& in = m_bindings[m_input_index];
         size_t input_mem_size = in.count * sizeof(float);
@@ -936,8 +908,7 @@ std::vector<float> CTestModel::getOutput(cv::Mat &inputImg) {
         const auto& out = m_bindings[m_output_indices[0]];
         std::vector<float> prob_vec(out.host.begin(), out.host.end());
 
-        // 3. 后处理 (Softmax)
-        // 取出有效类别数的数据
+        // 后处理,取出有效类别数的数据
         std::vector<float> input_x;
         for (int i = 0; i < m_classNum; i++) {
             input_x.push_back(prob_vec[i]);
@@ -961,7 +932,6 @@ std::vector<float> CTestModel::getRegressionOutput(cv::Mat &inputImg, int versio
     std::vector<float> output_x;
 
     try {
-        // 1. 预处理 
         cv::Mat resized = letterbox_image_ambitus(inputImg, m_input_w_h);
         
         double rgb_means = 0.0;//0.7696278*255；
@@ -975,11 +945,9 @@ std::vector<float> CTestModel::getRegressionOutput(cv::Mat &inputImg, int versio
 
         cv::cvtColor(resized, resized, cv::COLOR_GRAY2RGB);
 
-        // HWC -> CHW
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(resized, preprocessedImage);
 
-        // 2. TensorRT 推理执行
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return {};
         auto& in = m_bindings[m_input_index];
         size_t input_mem_size = in.count * sizeof(float);
@@ -992,7 +960,6 @@ std::vector<float> CTestModel::getRegressionOutput(cv::Mat &inputImg, int versio
         const auto& out = m_bindings[m_output_indices[0]];
         std::vector<float> prob_vec(out.host.begin(), out.host.end());
 
-        // 3. 后处理逻辑分支
         if (version == 0) {
             for (int i = 0; i < m_classNum; i++) {
                 output_x.push_back(prob_vec[i]);
@@ -1003,13 +970,11 @@ std::vector<float> CTestModel::getRegressionOutput(cv::Mat &inputImg, int versio
                 output_x.push_back(prob_vec[i]);
             }
             
-            // 提取剩余位寻找最大值索引
             std::vector<float> temp_vector;
             for (int i = 2; i < m_classNum; i++) {
                 temp_vector.push_back(prob_vec[i]);
             }
             
-            // getIndexOfMax 为通用辅助函数
             int max_index = getIndexOfMax(temp_vector);
             test_p("********************************* prob max_index: " + std::to_string(max_index));
             output_x.push_back((float)max_index);
@@ -1029,19 +994,16 @@ std::vector<det_box> CTestModel::getFungus40XOutput(cv::Mat img, int w, int h, f
     cv::Size original_size = img.size();
 
     try {
-        // 1. 预处理：BGR -> RGB -> Resize -> Float32 -> Blob
+        // 预处理：BGR -> RGB -> Resize -> Float32 -> Blob
         cv::Mat rgbImg;
         cv::cvtColor(img, rgbImg, cv::COLOR_BGR2RGB);
         
         cv::Mat resized;
-        // 使用标准输入尺寸 (通常为 640x640)
         cv::resize(rgbImg, resized, cv::Size(m_input_w, m_input_h));
 
-        // 归一化并将 [H, W, C] 转换为 [C, H, W]
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(resized, preprocessedImage, 1.0/255.0, cv::Size(), cv::Scalar(), true, false, CV_32F);
 
-        // 2. TensorRT 推理执行
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return result;
         auto& in = m_bindings[m_input_index];
         size_t input_mem_size = in.count * sizeof(float);
@@ -1055,7 +1017,6 @@ std::vector<det_box> CTestModel::getFungus40XOutput(cv::Mat img, int w, int h, f
         if (m_output_indices.empty()) return result;
         const auto& out = m_bindings[m_output_indices[0]];
 
-        // 3. 后处理：利用 ImgHandle 中的通用逻辑
         int obj_count = (int)(out.count / (4 + m_classNum)); 
     
         std::vector<std::vector<det_box>> det_boxes_all = non_max_suppression_trt_yolov8(
@@ -1066,7 +1027,7 @@ std::vector<det_box> CTestModel::getFungus40XOutput(cv::Mat img, int w, int h, f
             m_classNum
         );
 
-        // 4. 坐标还原：只针对 NMS 后的最终结果
+        // 坐标还原：只针对 NMS 后的最终结果
         float scale_x = static_cast<float>(original_size.width) / m_input_w;
         float scale_y = static_cast<float>(original_size.height) / m_input_h;
 
@@ -1078,7 +1039,6 @@ std::vector<det_box> CTestModel::getFungus40XOutput(cv::Mat img, int w, int h, f
                 box.w  *= scale_x;
                 box.h  *= scale_y;
 
-                // 边界安全检查与裁剪，防止越界导致程序崩溃
                 box.x1 = std::max(0.0f, std::min(box.x1, (float)original_size.width - 1));
                 box.y1 = std::max(0.0f, std::min(box.y1, (float)original_size.height - 1));
                 box.w  = std::max(0.0f, std::min(box.w,  (float)original_size.width - box.x1));
@@ -1104,19 +1064,17 @@ std::vector<det_box> CTestModel::getFungusOverallOutput(cv::Mat img, int w, int 
     cv::Size original_size = img.size();
 
     try {
-        // 1. 预处理：BGR -> RGB -> Resize -> Float32 -> Blob
+        // BGR -> RGB -> Resize -> Float32 -> Blob
         cv::Mat rgbImg;
         cv::cvtColor(img, rgbImg, cv::COLOR_BGR2RGB);
         
         cv::Mat resized;
-        // 使用配置好的输入尺寸 (通常全景和 40X 尺寸一致，如 640)
         cv::resize(rgbImg, resized, cv::Size(m_input_w, m_input_h));
 
         // 归一化并将 [H, W, C] 转换为 [C, H, W]
         cv::Mat preprocessedImage;
         cv::dnn::blobFromImage(resized, preprocessedImage, 1.0/255.0, cv::Size(), cv::Scalar(), true, false, CV_32F);
 
-        // 2. TensorRT 推理执行
         if (m_input_index < 0 || m_input_index >= (int)m_bindings.size()) return result;
         auto& in = m_bindings[m_input_index];
         size_t input_mem_size = in.count * sizeof(float);
@@ -1128,8 +1086,6 @@ std::vector<det_box> CTestModel::getFungusOverallOutput(cv::Mat img, int w, int 
         if (m_output_indices.empty()) return result;
         const auto& out = m_bindings[m_output_indices[0]];
 
-        // 3. 后处理：直接使用封装好的高性能 NMS
-        // obj_count 对应输出矩阵的列数 (8400)
         int obj_count = (int)(out.count / (4 + m_classNum)); 
         
         std::vector<std::vector<det_box>> det_boxes_all = non_max_suppression_trt_yolov8(
@@ -1140,7 +1096,7 @@ std::vector<det_box> CTestModel::getFungusOverallOutput(cv::Mat img, int w, int 
             m_classNum
         );
 
-        // 4. 坐标还原：将 640 尺寸下的坐标映射回原图尺寸
+        // 坐标还原：将 640 尺寸下的坐标映射回原图尺寸
         float scale_x = static_cast<float>(original_size.width) / m_input_w;
         float scale_y = static_cast<float>(original_size.height) / m_input_h;
 
@@ -1173,11 +1129,9 @@ std::vector<det_box> CTestModel::getFungusOverallOutput(cv::Mat img, int w, int 
 
 double varianceOfLaplacian(const cv::Mat& image) {
     cv::Mat laplacian;
-    // 使用 CV_32F 保证计算精度，避免 8U 类型在差分计算时溢出
     cv::Laplacian(image, laplacian, CV_32F);
     
     cv::Scalar mean, stddev;
-    // 同时计算均值和标准差，标准差的平方即为方差
     cv::meanStdDev(laplacian, mean, stddev);
     
     return stddev.val[0] * stddev.val[0];
@@ -1187,20 +1141,18 @@ double CTestModel::calculateSharpnessScoreFast(const cv::Mat& image) {
     if (image.empty()) return 0.0;
 
     cv::Mat gray;
-    // 1. 颜色空间转换 (清晰度检测通常在单通道灰度图上进行)
     if (image.channels() == 3) {
         cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
     } else {
         gray = image;
     }
 
-    // 2. 快速缩放
+    // 快速缩放
     cv::Mat resized;
     double fx = 0.5;
     double fy = 0.5;
     cv::resize(gray, resized, cv::Size(), fx, fy, cv::INTER_LINEAR);
 
-    // 3. 计算方差
     double laplacianVar = varianceOfLaplacian(resized);
 
     return laplacianVar;
@@ -1233,7 +1185,6 @@ cv::Mat CTestModel::extractChromosomeROI(const cv::Mat& src) {
     // 降噪：使用高斯模糊平滑细节，减少二值化时的噪点
     cv::GaussianBlur(gray, denoised, cv::Size(GAUSSIAN_KERNEL, GAUSSIAN_KERNEL), 0.9);
 
-    // 自适应阈值：处理光照不均，THRESH_BINARY_INV 将染色体(暗部)转为白色(255)
     cv::adaptiveThreshold(denoised, thresh, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
                           cv::THRESH_BINARY_INV, 21, 3);
 
@@ -1252,8 +1203,6 @@ cv::Mat CTestModel::extractChromosomeROI(const cv::Mat& src) {
     cv::Mat mask = cv::Mat::zeros(thresh.size(), CV_8UC1);
     for (size_t i = 0; i < contours.size(); i++) {
         double area = cv::contourArea(contours[i]);
-        // 只有面积大于阈值的轮廓才认为是染色体
-        // 注意：MIN_CHROMOSOME_AREA 需在头文件中定义 (如 100)
         if (area >= MIN_CHROMOSOME_AREA) {
             cv::drawContours(mask, contours, (int)i, cv::Scalar(255), -1);
         }
@@ -1281,7 +1230,6 @@ void CTestModel::detectChromosomeCorners(const cv::Mat& roi, const cv::Mat& mask
 	}
 
 	// 初始化并运行 FAST 特征检测器
-    // FAST_THRESHOLD 建议值 10-20
 	cv::Ptr<cv::FastFeatureDetector> fast = cv::FastFeatureDetector::create(
 		FAST_THRESHOLD, true, cv::FastFeatureDetector::TYPE_9_16
 	);
@@ -1302,13 +1250,13 @@ void CTestModel::detectChromosomeCorners(const cv::Mat& roi, const cv::Mat& mask
 		int x = static_cast<int>(kp.pt.x);
 		int y = static_cast<int>(kp.pt.y);
 
-		// A. 掩膜过滤：确保角点落在 extractChromosomeROI 提取出的染色体区域内
+		// 掩膜过滤：确保角点落在 extractChromosomeROI 提取出的染色体区域内
 		if (x < 0 || x >= mask.cols || y < 0 || y >= mask.rows ||
 			mask.at<uchar>(y, x) != 255) {
 			continue;
 		}
 
-		// B. 边缘抑制：剔除距离图像边缘过近的点 (EDGE_PADDING 建议值 5-10)
+		// 边缘抑制：剔除距离图像边缘过近的点 (EDGE_PADDING 建议值 5-10)
 		if (kp.pt.x < EDGE_PADDING || kp.pt.x > static_cast<float>(roi.cols - EDGE_PADDING) ||
 			kp.pt.y < EDGE_PADDING || kp.pt.y > static_cast<float>(roi.rows - EDGE_PADDING)) {
 			continue;
@@ -1359,9 +1307,6 @@ std::vector<cv::Mat> CTestModel::batchInferBoxes(
 
     size_t B = frames.size();
     if (B == 0) return {};
-    
-    // 注意：TensorRT 引擎在构建时通常固定了 Max Batch Size (m_input_b)
-    // 如果 B 超过了引擎允许的最大 batch，需要分段处理
     if (B > (size_t)m_input_b) {
         test_p("【警告】输入 Batch 大于模型上限，将只处理前 " + std::to_string(m_input_b) + " 帧");
         B = m_input_b;
@@ -1387,8 +1332,6 @@ std::vector<cv::Mat> CTestModel::batchInferBoxes(
 
         x_factors[i] = static_cast<float>(_max) / m_input_w;
         y_factors[i] = static_cast<float>(_max) / m_input_h;
-
-        // BGR2RGB, 归一化, HWC->CHW
         cv::Mat blob = cv::dnn::blobFromImage(canvas, 1.0f / 255.0f, cv::Size(m_input_w, m_input_h), cv::Scalar(0, 0, 0), true, false);
         
         // 拷贝到批量缓冲区的对应位置
@@ -1405,9 +1348,8 @@ std::vector<cv::Mat> CTestModel::batchInferBoxes(
     if (m_output_indices.empty()) return {};
     auto& out = m_bindings[m_output_indices[0]];
 
-    int obj_count = 8400; // 特征点数
-    int dims = m_input_c; // 38 (4 + classes + masks)
-
+    int obj_count = 8400; 
+    int dims = m_input_c; 
     for (size_t i = 0; i < B; ++i) {
         // 指向第 i 个样本的起始地址
         float* sample_ptr = out.host.data() + i * dims * obj_count;

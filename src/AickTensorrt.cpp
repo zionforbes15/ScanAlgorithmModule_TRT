@@ -334,9 +334,9 @@ int getChannels(char *image, int W, int H, size_t data_size) {
     if (image != nullptr && W > 0 && H > 0) {
         int bytesPerPixel = static_cast<int>(data_size / (W * H));
         
-        if (bytesPerPixel == 1) channels = 1;      // Gray / Alpha mask
-        else if (bytesPerPixel == 3) channels = 3; // RGB / BGR
-        else if (bytesPerPixel == 4) channels = 4; // RGBA / BGRA
+        if (bytesPerPixel == 1) channels = 1;      
+        else if (bytesPerPixel == 3) channels = 3; 
+        else if (bytesPerPixel == 4) channels = 4; 
     }
     return channels;
 }
@@ -472,7 +472,7 @@ namespace DeepLearningFuncs
 	{
 		std::cout << "Aick start !!!!!" << std::endl;
 		
-		// 逻辑在这里触发：第一次启动时初始化 valid_mask
+		// 第一次启动时初始化 valid_mask
 		if (valid_mask.empty()) {
 			cv::Mat mat = cv::Mat::ones(3300, 2200, CV_8UC1);
 			valid_mask = matToString(mat);
@@ -521,11 +521,10 @@ namespace DeepLearningFuncs
             test_p("Warning: fungus_overall_det_threshold invalid, using 0.2");
         }
 
-        // 确认你的 DetModel.cpp 内部顺序
         std::tuple<int, int, int> fungus_overall_tup = std::make_tuple(640, 1440, 3);
         std::tuple<int, int, int> fungus_tup = std::make_tuple(2448, 2048, 3);
         
-        //在板端，如果同时初始化两个大模型，观察显存（使用 tegrastats 命令）
+        //同时初始化两个大模型，观察显存（使用 tegrastats 命令）
         if (!str_fungus_overall_path.empty() && FungusOverDet != nullptr)
         { 
             test_p("Loading Overall Model: " + str_fungus_overall_path);
@@ -619,7 +618,7 @@ namespace DeepLearningFuncs
 
 		// 扩充边界
 		cv::Mat img_res;
-		// 使用 OpenCV 优化过的边界扩充，代替手动 copyTo，Scalar(255) 对应原逻辑
+		// 使用 OpenCV 优化过的边界扩充，代替手动 copyTo，Scalar(255)
 		cv::copyMakeBorder(img, img_res, kstride, kstride, kstride, kstride, cv::BORDER_CONSTANT, cv::Scalar(255));
 
 		// 类型转换
@@ -666,9 +665,9 @@ namespace DeepLearningFuncs
 			file << "P6\n" << w << " " << h << "\n255\n"; 
 			size_t total_bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 3;
 			for (size_t i = 0; i < total_bytes; i += 3) {
-				file.put(image[i + 2]); // 写入 Red
-				file.put(image[i + 1]); // 写入 Green
-				file.put(image[i]);     // 写入 Blue
+				file.put(image[i + 2]); 
+				file.put(image[i + 1]); 
+				file.put(image[i]);     
 			}
 
 			file.close();
@@ -701,7 +700,7 @@ namespace DeepLearningFuncs
 			if (val < minVal) minVal = val;
 		}
 
-		// 2. 根据值范围确定位深度 
+		// 根据值范围确定位深度 
 		if (maxVal <= 255 && minVal >= 0) {
 			test_p("======---==DEPTH_8U (Detected by range)");
 			depth = DEPTH_8U;
@@ -715,7 +714,6 @@ namespace DeepLearningFuncs
 			return cv::Mat();
 		}
 
-		// 3. 创建 cv::Mat 对象
 		try {
 			if (depth == DEPTH_8U) {
 				test_p("Creating CV_8UC3 Mat for 10X image: " + std::to_string(w) + "x" + std::to_string(h));
@@ -734,20 +732,19 @@ namespace DeepLearningFuncs
 
 	bool isCharArrayContiguous(const char* arr, size_t size) 
 	{
-		// 对于标准的 char 数组指针，内存永远是连续的
 		return (arr != nullptr); 
 	}
 
-	//按照轮廓面积大小排序
+	//按照轮廓面积大小降序排列
 	bool AickTensorrtStarter::compareContourAreas(const std::vector<cv::Point>& contour1, const std::vector<cv::Point>& contour2) {
 		double area1 = std::abs(cv::contourArea(contour1));
 		double area2 = std::abs(cv::contourArea(contour2));
-		return area1 > area2; // 降序排列
+		return area1 > area2;
 	}
 
 	int AickTensorrtStarter::CellDetector(int nSliceID, char* image, int w, int h, int detType, std::string savePath, std::vector<std::vector<float>>& CellData, std::string model_path, int class_num, float conf_thres, float iou_thres) 
 {
-    class_num = 2;  // 检测模型设置为2分类
+    class_num = 2;  
     cv::Mat imgf = cv::imread(savePath + "/zoom.jpg");
     cv::Mat img;
     if (imgf.empty()) {
@@ -1333,7 +1330,6 @@ namespace DeepLearningFuncs
 
         test_p(get_date_time() + " --- 清晰度评价计算结束，最优帧索引: " + std::to_string(index));
 
-        // 5. 调试信息打印 (showInf)
         if (std::stoi(config["showInf"])) {
             std::cout << "--- 偏移计算详情 ---" << std::endl;
             std::cout << "目标矩形: [x:" << boundRect.x << " y:" << boundRect.y 
@@ -1343,7 +1339,7 @@ namespace DeepLearningFuncs
                       << boundRect.y + boundRect.height / 2 << "]" << std::endl;
             std::cout << "最终偏移: X=" << offset[0] << " Y=" << offset[1] << std::endl;
             
-            UseCondition(); // 打印资源占用
+            UseCondition(); 
         }
 
         return 0;
@@ -1403,7 +1399,7 @@ namespace DeepLearningFuncs
 				return 1;
 			}
 
-			// 4. 执行 DBSCAN 聚类
+			// 执行 DBSCAN 聚类
 			test_p(get_date_time() + " --- Center_alignment: 开始 DBSCAN 聚类, 点数: " + std::to_string(chromo_points.size()));
 			DBSCAN ds(minPts, eps, chromo_points);
 			ds.run();
@@ -1763,7 +1759,7 @@ namespace DeepLearningFuncs
 				std::cout << vec_x << "\t" << vec_y << "\t" << vec_w << "\t" << vec_h << std::endl;
 				cv::Mat img_temp = img(cv::Rect(vec_x, vec_y, vec_w, vec_h));
 
-				//杂质预测 (Impurities Detection)
+				//杂质预测
 				test_p("=-=-=-=-=-=-开始预测是否为杂质 !!!");
 				std::vector<float> impurities_result = impurities_score->getOutput(img_temp);
 				cout << "impurities_result info: size is: " << impurities_result.size() << " " << impurities_result[0] << " " << impurities_result[1] << " " << impurities_result[2] << endl;
@@ -1774,7 +1770,6 @@ namespace DeepLearningFuncs
 				float score = 0.0f;
 				std::vector<float> reg_result = { 0, 0, 0 };
 
-				// 杂质分类打印
 				std::cout << "biggest : " << *biggest_it << "sub_class : " << sub_class << std::endl;
 
 				cout << "to_string(impurities_result[1]) " << to_string(impurities_result[1]) << endl;
@@ -1826,7 +1821,7 @@ namespace DeepLearningFuncs
 				long long tmp_time = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 				
 				cout << "score is : " << score << endl;
-				// 组装图片名
+
 				std::string img_name = formatDobleValue(score * 100, 2) + "_" + std::to_string(tmp_time) + 
 									"_point_" + formatDobleValue(simpleScanPoint[0], 5) + "_" + 
 									formatDobleValue(simpleScanPoint[1], 5) + "_" + 
@@ -2227,7 +2222,7 @@ namespace DeepLearningFuncs
 
 		// 用于 std::sort：按 score 降序（分数高的排前面）
 		bool operator<(const ScoreWithMat& other) const {
-			return score > other.score; // 注意：> 实现降序
+			return score > other.score; 
 		}
 	};
 
@@ -2274,8 +2269,7 @@ namespace DeepLearningFuncs
 
 		// 第二轮：针对 ROI 区域进行高精度重评分
 		for (size_t i = 0; i < results.size(); ++i) {
-			if (results[i].empty()) continue; // 防止模型未检测到目标导致空图
-
+			if (results[i].empty()) continue; 
 			double roi_score = SharpnessDet->calculateSharpnessScore(results[i]);
 			int original_index = top5_indices[i];
 			

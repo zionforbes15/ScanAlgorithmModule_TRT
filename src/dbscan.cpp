@@ -38,7 +38,7 @@ int DBSCAN::expandCluster(PointZX point, int clusterID)
             m_points[seedIdx].clusterID = clusterID;
         }
 
-        // 2. 扩展邻域 
+        // 扩展邻域 
         size_t i = 0;
         while (i < clusterSeeds.size()) {
             int currentSeedIdx = clusterSeeds[i];
@@ -68,7 +68,7 @@ vector<int> DBSCAN::calculateCluster(PointZX point)
 
     for (size_t i = 0; i < m_points.size(); ++i)
     {
-        // 直接计算平方距离，板端 CPU 友好
+        // 直接计算平方距离
         double dist_sq = pow(point.x - m_points[i].x, 2) + pow(point.y - m_points[i].y, 2);
         if (dist_sq <= eps_sq)
         {

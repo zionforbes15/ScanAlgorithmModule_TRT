@@ -379,7 +379,7 @@ inline std::vector<std::vector<det_box>> non_max_suppression_trt_yolov8(const fl
             }
         }
 
-        // 2. 只有得分达标的才去取坐标（极大减少内存访问）
+        // 只有得分达标的才去取坐标
         if (max_score > conf_thres) {
             float cx = prob[0 * obj_count + j];
             float cy = prob[1 * obj_count + j];
@@ -473,7 +473,7 @@ inline void non_max_suppression_trt_yolov8_seg(cv::Mat& img, float* prob0, float
     std::vector<int> class_ids;
     std::vector<cv::Mat> mask_weights;
 
-    // --- Step 1: 遍历检测分支数据 (按 TensorRT 的 CHW 布局直接读取) ---
+    // 遍历检测分支数据 (按 TensorRT 的 CHW 布局直接读取)
     for (size_t j = 0; j < obj_count; j++) {
         
         // 寻找当前 anchor 中概率最大的类别
